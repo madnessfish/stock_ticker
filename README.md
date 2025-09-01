@@ -40,12 +40,18 @@ A real-time stock ticker display for NVDA and AAPL stocks using the LilyGO T-Dis
 
 1. Copy the entire `stock_ticker` folder to your Arduino projects directory
 
-2. Copy the required libraries from the T-Display-S3-AMOLED repository:
+2. **IMPORTANT: Configure your credentials:**
+   ```bash
+   cp config.h.template config.h
+   # Edit config.h with your WiFi and API credentials
+   ```
+
+3. Copy the required libraries from the T-Display-S3-AMOLED repository:
    ```
    T-Display-S3-AMOLED/lib/TFT_eSPI → Arduino/libraries/
    ```
 
-3. Configure Arduino IDE:
+4. Configure Arduino IDE:
    - Board: "ESP32S3 Dev Module"
    - USB CDC On Boot: "Enabled"
    - PSRAM: "OPI PSRAM"

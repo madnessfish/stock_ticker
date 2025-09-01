@@ -1,0 +1,27 @@
+// Configuration Template for Stock Ticker
+// Copy this file to config.h and fill in your credentials
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// WiFi Configuration
+const char* ssid = "YOUR-WIFI-SSID";        // Your WiFi network name
+const char* password = "YOUR-WIFI-PASSWORD"; // Your WiFi password
+
+// API Configuration - Choose one option:
+
+// Option 1: Alpha Vantage (5 calls/minute)
+// Get free key at https://www.alphavantage.co/support/#api-key
+#define USE_ALPHAVANTAGE  
+const char* apiKey = "YOUR_ALPHA_VANTAGE_KEY";
+
+// Option 2: Finnhub (60 calls/minute) 
+// Get free key at https://finnhub.io/register
+// #define USE_FINNHUB
+// const char* apiKey = "YOUR_FINNHUB_API_KEY";
+
+// Option 3: Yahoo Finance (No API key needed)
+// Uncomment to use Yahoo Finance for all stocks
+// #define USE_YAHOO_FINANCE
+
+#endif // CONFIG_H

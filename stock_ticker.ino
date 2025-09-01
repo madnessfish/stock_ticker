@@ -21,19 +21,9 @@ TFT_eSprite spr = TFT_eSprite(&tft);
 #define WIDTH  536
 #define HEIGHT 240
 
-// ===== CONFIGURATION - EDIT THESE =====
-const char* ssid = "YOUR-WIFI-SSID";        // Your WiFi name
-const char* password = "YOUR-WIFI-PASSWORD"; // Your WiFi password
-
-// Choose your API provider (uncomment one):
-
-// Option 2: Alpha Vantage (5 calls/minute)
-#define USE_ALPHAVANTAGE  
-const char* apiKey = "YOUR_API_KEY"; // Get free at https://www.alphavantage.co/support/#api-key
-
-// Option 3: Yahoo Finance (Unofficial, no key needed but less reliable)
-// #define USE_YAHOO_FINANCE
-// =====================================
+// Include configuration file with WiFi and API credentials
+// Copy config.h.template to config.h and add your credentials
+#include "config.h"
 
 // Stock data structure
 struct StockData {
