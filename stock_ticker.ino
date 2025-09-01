@@ -248,8 +248,7 @@ void parseStockData(String json, int index) {
     }
     
     Serial.print(stocks[index].symbol);
-    Serial.print(" - Price: ");
-    Serial.print(stocks[index].symbol == "POPMART" ? "HK$" : "$");
+    Serial.print(" - Price: $");
     Serial.print(stocks[index].price);
     Serial.print(" Change: ");
     Serial.print(stocks[index].changePercent);
@@ -309,17 +308,15 @@ void displayStockInfo(int index) {
         spr.drawFastHLine(0, y, WIDTH, bgColor);
     }
     
-    // Stock symbol with colored background (wider box for POPMART)
+    // Stock symbol with colored background - all same width, left aligned
     uint16_t symbolBgColor = stock.change >= 0 ? spr.color565(0, 60, 0) : spr.color565(60, 0, 0);
-    int boxWidth = (stock.symbol == "POPMART") ? 150 : 120;
-    spr.fillRoundRect(15, 15, boxWidth, 50, 8, symbolBgColor);
+    spr.fillRoundRect(15, 15, 150, 50, 8, symbolBgColor);
     spr.setTextSize(4);
     spr.setTextColor(TFT_WHITE, symbolBgColor);
-    spr.setTextDatum(MC_DATUM);
-    int symbolX = (stock.symbol == "POPMART") ? 90 : 75;
-    spr.drawString(stock.symbol, symbolX, 40);
+    spr.setTextDatum(ML_DATUM);  // Middle Left alignment
+    spr.drawString(stock.symbol, 25, 40);  // All symbols start at same X position
     
-    // Current price (with HK$ for POPMART, N/A if no data)
+    // Current price - all use $ for consistency, left aligned
     spr.setTextDatum(TL_DATUM);
     spr.setTextSize(5);
     String priceStr;
@@ -328,27 +325,17 @@ void displayStockInfo(int index) {
         spr.setTextColor(TFT_DARKGREY);
     } else {
         spr.setTextColor(TFT_WHITE);
-        if (stock.symbol == "POPMART") {
-            priceStr = "HK$" + String(stock.price, 2);
-        } else {
-            priceStr = "$" + String(stock.price, 2);
-        }
+        priceStr = "$" + String(stock.price, 2);
     }
-    // Adjust X position for better alignment
-    int priceX = 20;
-    if (stock.symbol == "POPMART" && stock.price != 0) {
-        // Move HK$ price left to align dollar amounts
-        priceX = 10;
-    }
-    spr.drawString(priceStr, priceX, 80);
+    spr.drawString(priceStr, 20, 80);  // All prices start at same position
     
     // Change with arrow
     spr.setTextSize(2);
     uint16_t changeColor = stock.change >= 0 ? TFT_GREEN : TFT_RED;
     spr.setTextColor(changeColor);
     
-    // Arrow indicator (adjust position for POPMART)
-    int arrowX = (stock.symbol == "POPMART" && stock.price != 0) ? 10 : 20;
+    // Arrow indicator - all at same position
+    int arrowX = 20;
     int arrowY = 140;
     if (stock.price != 0) {  // Only draw arrow if we have data
         if (stock.change >= 0) {
@@ -365,8 +352,7 @@ void displayStockInfo(int index) {
         changeStr = (stock.change >= 0 ? "+" : "") + String(stock.change, 2) + 
                     " (" + (stock.change >= 0 ? "+" : "") + String(stock.changePercent, 2) + "%)";
     }
-    int changeX = (stock.symbol == "POPMART" && stock.price != 0) ? 25 : 35;
-    spr.drawString(changeStr, changeX, 135);
+    spr.drawString(changeStr, 35, 135);  // All changes at same position
     
     // Day range
     spr.drawRoundRect(20, 170, 200, 50, 5, TFT_DARKGREY);
@@ -379,9 +365,8 @@ void displayStockInfo(int index) {
         spr.drawString("H: --", 25, 195);
         spr.drawString("L: --", 120, 195);
     } else {
-        String currency = (stock.symbol == "POPMART") ? "HK$" : "$";
-        String highStr = "H: " + currency + String(stock.dayHigh, 2);
-        String lowStr = "L: " + currency + String(stock.dayLow, 2);
+        String highStr = "H: $" + String(stock.dayHigh, 2);
+        String lowStr = "L: $" + String(stock.dayLow, 2);
         spr.drawString(highStr, 25, 195);
         spr.drawString(lowStr, 120, 195);
     }
