@@ -37,12 +37,14 @@ struct StockData {
     float openPrice;
     int trend[20];
     unsigned long lastUpdate;
+    String marketState;  // "REGULAR", "PRE", "POST", "CLOSED"
 };
 
-StockData stocks[3] = {
-    {"NVDA", 0, 0, 0, 0, 0, 0, 0, {50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}, 0},
-    {"AAPL", 0, 0, 0, 0, 0, 0, 0, {50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}, 0},
-    {"POPMART", 0, 0, 0, 0, 0, 0, 0, {50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}, 0}  // 9992.HK
+StockData stocks[4] = {
+    {"NVDA", 0, 0, 0, 0, 0, 0, 0, {50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}, 0, ""},
+    {"AAPL", 0, 0, 0, 0, 0, 0, 0, {50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}, 0, ""},
+    {"UVXY", 0, 0, 0, 0, 0, 0, 0, {50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}, 0, ""},
+    {"POPMART", 0, 0, 0, 0, 0, 0, 0, {50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}, 0, ""}  // 9992.HK
 };
 
 int currentStockIndex = 0;
@@ -78,8 +80,10 @@ void setup() {
     WiFi.begin(ssid, password);
     Serial.println("WiFi connecting in background...");
     
-    // Configure time
-    configTime(0, 0, "pool.ntp.org");
+    // Configure time for EST/EDT (UTC-5 with DST)
+    setenv("TZ", "EST5EDT,M3.2.0,M11.1.0", 1);
+    tzset();
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     
     // Skip certificate verification for HTTPS
     client.setInsecure();
@@ -101,7 +105,7 @@ void loop() {
     // Always update display - show whatever data we have
     if (millis() - lastDisplayUpdate > displayInterval) {
         displayStockInfo(currentStockIndex);
-        currentStockIndex = (currentStockIndex + 1) % 3;
+        currentStockIndex = (currentStockIndex + 1) % 4;
         lastDisplayUpdate = millis();
     }
     
@@ -111,7 +115,7 @@ void loop() {
 // Removed the blocking WiFi connection screen - WiFi connects in background
 
 void fetchAllStockData() {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         fetchStockData(i);
         delay(1000); // Small delay between API calls
     }
@@ -127,26 +131,11 @@ void fetchStockData(int index) {
     String url;
     String symbol = stocks[index].symbol;
     
-    // For POPMART, use Yahoo Finance (Alpha Vantage doesn't support HK stocks)
+    // Use Yahoo Finance for all stocks (no API key needed)
     if (symbol == "POPMART") {
         symbol = "9992.HK";
-        // Use Yahoo Finance for Hong Kong stocks
-        url = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol;
-    } else {
-        // Use Alpha Vantage for US stocks
-#ifdef USE_ALPHAVANTAGE
-        url = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=" + 
-              symbol + "&apikey=" + apiKey;
-#endif
-
-#ifdef USE_FINNHUB
-        url = "https://finnhub.io/api/v1/quote?symbol=" + symbol + "&token=" + apiKey;
-#endif
-
-#ifdef USE_YAHOO_FINANCE
-        url = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol;
-#endif
     }
+    url = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol;
     
     Serial.print("Fetching: ");
     Serial.print(stocks[index].symbol);
@@ -185,56 +174,26 @@ void parseStockData(String json, int index) {
         return;
     }
     
-    // Check if this is POPMART (will use Yahoo Finance format)
-    bool isHKStock = (stocks[index].symbol == "POPMART");
+    // Parse Yahoo Finance response (now used for all stocks)
+    JsonObject result = doc["chart"]["result"][0];
+    JsonObject meta = result["meta"];
     
-    if (isHKStock || json.indexOf("chart") != -1) {
-        // Parse Yahoo Finance response (for POPMART or if using Yahoo for all)
-        JsonObject result = doc["chart"]["result"][0];
-        JsonObject meta = result["meta"];
-        
-        stocks[index].price = meta["regularMarketPrice"] | 0.0;
-        stocks[index].previousClose = meta["previousClose"] | 0.0;
-        stocks[index].dayHigh = meta["regularMarketDayHigh"] | 0.0;
-        stocks[index].dayLow = meta["regularMarketDayLow"] | 0.0;
-        
-        if (stocks[index].price > 0 && stocks[index].previousClose > 0) {
-            stocks[index].change = stocks[index].price - stocks[index].previousClose;
-            stocks[index].changePercent = (stocks[index].change / stocks[index].previousClose) * 100;
-        }
+    stocks[index].price = meta["regularMarketPrice"] | 0.0;
+    stocks[index].previousClose = meta["previousClose"] | 0.0;
+    stocks[index].dayHigh = meta["regularMarketDayHigh"] | 0.0;
+    stocks[index].dayLow = meta["regularMarketDayLow"] | 0.0;
+    
+    // Get market state from API
+    const char* marketState = meta["marketState"];
+    if (marketState) {
+        stocks[index].marketState = String(marketState);
     } else {
-#ifdef USE_ALPHAVANTAGE
-        // Parse Alpha Vantage response (for US stocks)
-        JsonObject quote = doc["Global Quote"];
-        if (quote) {
-            stocks[index].price = atof(quote["05. price"] | "0");
-            stocks[index].openPrice = atof(quote["02. open"] | "0");
-            stocks[index].dayHigh = atof(quote["03. high"] | "0");
-            stocks[index].dayLow = atof(quote["04. low"] | "0");
-            stocks[index].previousClose = atof(quote["08. previous close"] | "0");
-            
-            String changeStr = quote["09. change"] | "0";
-            stocks[index].change = atof(changeStr.c_str());
-            
-            String changePctStr = quote["10. change percent"] | "0%";
-            changePctStr.replace("%", "");
-            stocks[index].changePercent = atof(changePctStr.c_str());
-        }
-#endif
-
-#ifdef USE_FINNHUB
-        // Parse Finnhub response
-        stocks[index].price = doc["c"] | 0.0;
-        stocks[index].previousClose = doc["pc"] | 0.0;
-        stocks[index].openPrice = doc["o"] | 0.0;
-        stocks[index].dayHigh = doc["h"] | 0.0;
-        stocks[index].dayLow = doc["l"] | 0.0;
-        
-        if (stocks[index].price > 0 && stocks[index].previousClose > 0) {
-            stocks[index].change = stocks[index].price - stocks[index].previousClose;
-            stocks[index].changePercent = (stocks[index].change / stocks[index].previousClose) * 100;
-        }
-#endif
+        stocks[index].marketState = "CLOSED";
+    }
+    
+    if (stocks[index].price > 0 && stocks[index].previousClose > 0) {
+        stocks[index].change = stocks[index].price - stocks[index].previousClose;
+        stocks[index].changePercent = (stocks[index].change / stocks[index].previousClose) * 100;
     }
     
     Serial.print(stocks[index].symbol);
@@ -278,7 +237,7 @@ void displaySplashScreen() {
     
     spr.setTextSize(2);
     spr.setTextColor(TFT_WHITE, TFT_BLACK);
-    spr.drawString("NVDA | AAPL | POPMART", WIDTH/2, 160);
+    spr.drawString("NVDA | AAPL | UVXY | POPMART", WIDTH/2, 160);
     
     spr.setTextSize(1);
     spr.setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -367,8 +326,8 @@ void displayStockInfo(int index) {
     // Update time
     drawUpdateTime(280, 190, stock.lastUpdate);
     
-    // Market status
-    drawMarketStatus(420, 15);
+    // Market status - aligned with right edge of chart rectangle (280 + 230 + 5 = 515 - 30 for width)
+    drawMarketStatus(485, 5);
     
     // Show loading indicator if data hasn't been updated from API yet
     if (stock.lastUpdate == 0) {
@@ -457,26 +416,43 @@ void drawUpdateTime(int x, int y, unsigned long lastUpdate) {
 }
 
 void drawMarketStatus(int x, int y) {
-    // Check if market is open (NYSE: 9:30 AM - 4:00 PM EST)
-    struct tm timeinfo;
-    bool marketOpen = false;
+    // Get market status from API data
+    bool usMarketOpen = false;
+    bool hkMarketOpen = false;
     
-    if (getLocalTime(&timeinfo)) {
-        int hour = timeinfo.tm_hour; // Adjust for your timezone
-        int minute = timeinfo.tm_min;
-        int weekday = timeinfo.tm_wday;
-        
-        // Market open Mon-Fri, 9:30 AM - 4:00 PM EST
-        // Adjust these hours for your timezone
-        if (weekday >= 1 && weekday <= 5) {
-            if ((hour > 9 || (hour == 9 && minute >= 30)) && hour < 16) {
-                marketOpen = true;
-            }
+    // Check US market status (NVDA, AAPL, UVXY)
+    for (int i = 0; i < 3; i++) {
+        if (stocks[i].marketState == "REGULAR" || stocks[i].marketState == "PRE" || stocks[i].marketState == "POST") {
+            usMarketOpen = true;
+            break;
         }
     }
     
-    spr.fillCircle(x, y + 8, 4, marketOpen ? TFT_GREEN : TFT_RED);
+    // Check HK market status (POPMART)
+    if (stocks[3].marketState == "REGULAR" || stocks[3].marketState == "PRE" || stocks[3].marketState == "POST") {
+        hkMarketOpen = true;
+    }
+    
+    // Draw US market status
     spr.setTextSize(1);
     spr.setTextColor(TFT_WHITE);
-    spr.drawString(marketOpen ? "OPEN" : "CLOSED", x + 10, y);
+    spr.drawString("US", x, y);
+    spr.fillCircle(x + 20, y + 4, 3, usMarketOpen ? TFT_GREEN : TFT_RED);
+    
+    // Draw HK market status
+    spr.drawString("HK", x, y + 12);
+    spr.fillCircle(x + 20, y + 16, 3, hkMarketOpen ? TFT_GREEN : TFT_RED);
+    
+    // Show market phase for current stock
+    StockData &stock = stocks[currentStockIndex];
+    if (stock.marketState != "") {
+        spr.setTextSize(1);
+        spr.setTextColor(TFT_DARKGREY);
+        String phase = "";
+        if (stock.marketState == "PRE") phase = "PRE";
+        else if (stock.marketState == "POST") phase = "POST";
+        else if (stock.marketState == "REGULAR") phase = "OPEN";
+        else phase = "CLOSED";
+        spr.drawString(phase, x - 5, y + 24);
+    }
 }
